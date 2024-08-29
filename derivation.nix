@@ -93,18 +93,41 @@ in
               patchedLockfile = processResult.patchedLockfile;
               patchedLockfileYaml = writeText "pnpm-lock.yaml" (toJSON passthru.patchedLockfile);
 
-              pnpmStore = runCommand "${name}-pnpm-store"
-                {
-                  nativeBuildInputs = [ nodejs pnpm ];
-                } ''
-                mkdir -p $out
+              # pnpmStore = runCommand "${name}-pnpm-store"
+              #   {
+              #     nativeBuildInputs = [ nodejs pnpm ];
+              #   } ''
+              #   set -x
+              #   mkdir -p $out
 
-                store=$(pnpm store path)
-                mkdir -p $(dirname $store)
-                ln -s $out $(pnpm store path)
+              #   store=$(pnpm store path)
+              #   mkdir -p $(dirname $store)
+              #   [ -L $store ] || rm $store
+              #   ln -s $out $(pnpm store path)
 
-                pnpm store add ${concatStringsSep " " (unique processResult.dependencyTarballs)}
-              '';
+              #   pnpm store add ${concatStringsSep " " (unique processResult.dependencyTarballs)}
+              #   set+x
+              # '';
+
+              pnpmStore = let 
+                depTars = unique processResult.dependencyTarballs;
+              in stdenv.mkDerivation {
+                name = "${name}-pnpm-store";
+                nativeBuildInputs = [ nodejs pnpm ];
+                srcs = depTars;
+                sourceRoot = ".";
+                configurePhase = ''
+                  set -x
+                  mkdir -p $out
+                  store=$(pnpm store path)
+                  mkdir -p $(dirname $store)
+                  [ -L $store ] && rm $store
+                  ln -s $out $store
+                '';
+                buildPhase = ''
+                  pnpm store add deps/*
+                '';
+              };
 
               nodeModules = stdenv.mkDerivation {
                 name = "${name}-node-modules";
